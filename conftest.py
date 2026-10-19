@@ -41,7 +41,7 @@ def _test_runtime_settings(settings):
     settings.CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "walletapi-tests",
+            "LOCATION": "nagorikfix-tests",
         }
     }
     settings.CELERY_TASK_ALWAYS_EAGER = True
@@ -55,8 +55,24 @@ def api_client():
 
 
 @pytest.fixture
-def tenant(db):
-    """Shared tenant for app tests that do not define their own fixture."""
-    from apps.tenants.models import Tenant
+def citizen_user(db):
+    from apps.accounts.models import User
 
-    return Tenant.objects.create(name="Acme")
+    # USERNAME_FIELD is email — pass it as the first create_user argument.
+    return User.objects.create_user(
+        "citizen@example.com",
+        password="testpass123",
+        username="citizen1",
+        role=User.Role.CITIZEN,
+    )
+
+
+@pytest.fixture
+def road_category(db):
+    from apps.reports.models import Category
+
+    return Category.objects.create(
+        name="Road",
+        slug="road",
+        sort_order=1,
+    )

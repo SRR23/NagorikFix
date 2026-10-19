@@ -1,4 +1,4 @@
-"""Development settings for WalletAPI."""
+"""Development settings for NagorikFix API."""
 import os
 
 from .base import *

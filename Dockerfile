@@ -1,4 +1,4 @@
-# WalletAPI application image (local Compose).
+# NagorikFix API application image (local Compose).
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

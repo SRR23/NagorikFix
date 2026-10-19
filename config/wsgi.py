@@ -1,5 +1,5 @@
 """
-WSGI config for WalletAPI.
+WSGI config for NagorikFix API.
 
 Exposes the WSGI callable as ``application``.
 """

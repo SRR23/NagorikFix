@@ -1,5 +1,5 @@
 """
-ASGI config for WalletAPI.
+ASGI config for NagorikFix API.
 
 Exposes the ASGI callable as ``application``.
 """

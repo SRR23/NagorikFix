@@ -1,30 +1,57 @@
-"""
-Custom DRF permissions.
-"""
+"""Role-based DRF permissions for the civic platform."""
 from rest_framework.permissions import BasePermission
 
 
-class IsSuperUser(BasePermission):
-    """Only Django users with is_superuser=True (platform admin JWT)."""
-
-    message = "Only a super admin can access this resource."
+class IsCitizen(BasePermission):
+    message = "Citizen account required."
 
     def has_permission(self, request, view):
+        user = request.user
         return bool(
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "is_superuser", False)
+            user
+            and user.is_authenticated
+            and getattr(user, "is_citizen", False)
         )
 
 
-class IsTenantUser(BasePermission):
-    """Require a tenant-scoped JWT principal (TenantUserPrincipal)."""
+class IsAuthorityAdmin(BasePermission):
+    """District / city-corp style admin (role=admin) or Django superuser."""
 
-    message = "Tenant user authentication is required."
+    message = "Authority admin access required."
 
     def has_permission(self, request, view):
+        user = request.user
         return bool(
-            request.user
-            and request.user.is_authenticated
-            and hasattr(request, "tenant_user")
+            user
+            and user.is_authenticated
+            and (
+                getattr(user, "is_authority_admin", False)
+                or getattr(user, "is_superuser", False)
+            )
+        )
+
+
+class IsFieldOfficer(BasePermission):
+    message = "Field officer account required."
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and getattr(user, "is_field_officer", False)
+        )
+
+
+class IsAdminOrFieldOfficer(BasePermission):
+    message = "Admin or field officer access required."
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        return bool(
+            getattr(user, "is_authority_admin", False)
+            or getattr(user, "is_field_officer", False)
+            or getattr(user, "is_superuser", False)
         )

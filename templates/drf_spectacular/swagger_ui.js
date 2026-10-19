@@ -117,8 +117,6 @@ const injectAuthCredentials = (request) => {
 
 const requestInterceptor = (request, ...args) => {
   // Do not attach Authorize token when downloading the OpenAPI schema.
-  // Tenant-user JWTs are not Django users; sending them to /api/schema/
-  // used to return 401 and break Swagger ("Failed to load API definition").
   if (!isSchemaUrl(request.url)) {
     try {
       injectAuthCredentials(request);

@@ -1,11 +1,12 @@
-.PHONY: help install migrate runserver celery celery-beat test clean
+.PHONY: help install migrate seed runserver celery celery-beat test clean
 
 help:
-	@echo "WalletAPI - Django Backend Makefile"
+	@echo "NagorikFix API - Django Backend Makefile"
 	@echo ""
 	@echo "Available commands:"
 	@echo "  make install          - Install dependencies"
 	@echo "  make migrate          - Run database migrations"
+	@echo "  make seed             - Seed default report categories"
 	@echo "  make createsuperuser  - Create Django superuser"
 	@echo "  make runserver        - Run development server"
 	@echo "  make celery           - Run Celery worker"
@@ -19,6 +20,9 @@ install:
 migrate:
 	python manage.py makemigrations
 	python manage.py migrate
+
+seed:
+	python manage.py seed_categories
 
 createsuperuser:
 	python manage.py createsuperuser

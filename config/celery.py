@@ -15,6 +15,6 @@ from celery import Celery
 #   export DJANGO_SETTINGS_MODULE=config.settings.production
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 
-app = Celery("walletapi")
+app = Celery("nagorikfix")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()

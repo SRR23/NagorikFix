@@ -1,8 +1,7 @@
 """
-Shared settings for WalletAPI.
+Shared settings for NagorikFix API.
 
 Environment-specific overrides live in development.py and production.py.
-This file wires the project. It does not implement wallet or tenant rules.
 """
 import os
 from datetime import timedelta
@@ -34,12 +33,12 @@ THIRD_PARTY_APPS = [
     "django_celery_beat",
     "django_celery_results",
     "drf_spectacular",
+    "django_filters",
 ]
 
 LOCAL_APPS = [
-    "apps.tenants",
-    "apps.wallets",
-    "apps.ledger",
+    "apps.accounts",
+    "apps.reports",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -53,8 +52,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # Tenant scoping belongs in apps.tenants.middleware. Register it there
-    # after the class actually resolves the tenant. Do not register a no-op.
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -77,6 +74,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+AUTH_USER_MODEL = "accounts.User"
+
 # DATABASE_URL is for hosted Postgres. Local runs use DB_* variables.
 if dj_database_url and os.environ.get("DATABASE_URL"):
     DATABASES = {
@@ -90,16 +89,13 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("DB_NAME", "walletapi"),
+            "NAME": os.environ.get("DB_NAME", "nagorikfix"),
             "USER": os.environ.get("DB_USER", "postgres"),
             "PASSWORD": os.environ.get("DB_PASSWORD", "postgres"),
             "HOST": os.environ.get("DB_HOST", "localhost"),
             "PORT": os.environ.get("DB_PORT", "5432"),
         }
     }
-
-# Django AUTH_USER_MODEL is for platform super admin only.
-# Tenant accounts are apps.tenants.models.User (JWT + X-Tenant-ID).
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -109,7 +105,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Dhaka"
 USE_I18N = True
 USE_TZ = True
 
@@ -120,8 +116,6 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Platform operators use JWT. Tenant wallet APIs also use X-Tenant-ID.
-# Super-admin reads require is_superuser (see utils.permissions.IsSuperUser).
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -138,6 +132,11 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.JSONParser",
         "rest_framework.parsers.FormParser",
         "rest_framework.parsers.MultiPartParser",
+    ],
+    "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
+        "rest_framework.filters.OrderingFilter",
     ],
     "EXCEPTION_HANDLER": "utils.exceptions.custom_exception_handler",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -178,16 +177,10 @@ CACHES = {
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
-        "KEY_PREFIX": "walletapi",
+        "KEY_PREFIX": "nagorikfix",
         "TIMEOUT": 300,
     }
 }
-
-# EMAIL_BACKEND = os.environ.get(
-#     "EMAIL_BACKEND",
-#     "django.core.mail.backends.smtp.EmailBackend",
-# )
-# DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@localhost")
 
 LOGGING = {
     "version": 1,
@@ -223,35 +216,27 @@ LOGGING = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Wallet API — Multi-Tenant Ledger",
+    "TITLE": "NagorikFix API — Public Infrastructure Reporting",
     "DESCRIPTION": (
         "## Overview\n"
-        "REST API for a multi-tenant wallet and immutable ledger.\n\n"
+        "REST API for citizens to report public infrastructure issues "
+        "(roads, drainage, street lights, …) and for authorities / field "
+        "officers to track and resolve them.\n\n"
         "### Actors\n"
-        "- **Tenant user** — registers/logs in under a tenant (`X-Tenant-ID` + JWT). "
-        "Owns one wallet. Uses `/api/wallets/*` and `/api/ledger/*`.\n"
-        "- **Platform super admin** — Django `createsuperuser`. "
-        "Uses `/api/auth/admin/login/` then list tenants/users.\n\n"
+        "- **Citizen** — register/login, submit reports with GPS + media\n"
+        "- **Admin** — dashboard, assign tickets, set priority\n"
+        "- **Field officer** — task list, before/after proof, resolve\n\n"
         "### Typical flow\n"
-        "1. `POST /api/tenants/` → save tenant `id`\n"
-        "2. `POST /api/auth/register/` with header `X-Tenant-ID` → user + wallet + tokens\n"
-        "3. Call deposit / withdraw / transfer with Bearer token + same `X-Tenant-ID`\n"
-        "4. `GET /api/wallets/me/` and `.../transactions/` for balance and history\n\n"
-        "### Money\n"
-        "Amounts are **integers in minor units** (BDT paisa). "
-        "`1000` = 10.00 BDT. Never send floats.\n\n"
-        "### Idempotency\n"
-        "Mutating ledger endpoints require `idempotency_key` (unique per tenant). "
-        "A retry returns the original transaction with `replayed: true` (HTTP 200).\n\n"
-        "### Auth headers\n"
-        "- Tenant APIs: `Authorization: Bearer <tenant access>` **and** `X-Tenant-ID: <tenant uuid>`\n"
-        "- Admin APIs: `Authorization: Bearer <superadmin access>`\n\n"
-        "**Swagger tip:** The green **Authorize** button only sets the Bearer token. "
-        "You must still enter `X-Tenant-ID` on each tenant-user operation’s Parameters.\n\n"
-        "In DEBUG, Swagger may auto-fill a superadmin token; tenant-user calls still need "
-        "a tenant JWT and `X-Tenant-ID`."
+        "1. `GET /api/categories/` → pick a category\n"
+        "2. `POST /api/reports/` with lat/lng (+ optional anonymous flag)\n"
+        "3. `POST /api/reports/{id}/media/` to attach photo/video\n"
+        "4. Admin assigns officer via `PATCH /api/reports/{id}/update/`\n"
+        "5. Officer uploads before/after media and marks resolved\n\n"
+        "### Auth\n"
+        "`Authorization: Bearer <access_token>` from `/api/auth/login/` "
+        "or `/api/auth/register/`.\n"
     ),
-    "VERSION": "1.0.0",
+    "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
@@ -261,11 +246,7 @@ SPECTACULAR_SETTINGS = {
                 "type": "http",
                 "scheme": "bearer",
                 "bearerFormat": "JWT",
-                "description": (
-                    "Paste the **access** token only (Swagger adds `Bearer ` for you).\n\n"
-                    "**Important:** Authorize sets only `Authorization`. "
-                    "It does **not** send `X-Tenant-ID`."
-                ),
+                "description": "Paste the **access** token only (Swagger adds `Bearer `).",
             }
         }
     },
@@ -279,10 +260,13 @@ SPECTACULAR_SETTINGS = {
         "operationsSorter": "alpha",
     },
     "TAGS": [
-        {"name": "tenants", "description": "Create and (superadmin) inspect tenants."},
-        {"name": "users", "description": "Superadmin listing of domain users under tenants."},
-        {"name": "auth", "description": "Tenant-user register/login/refresh/me and admin login."},
-        {"name": "wallets", "description": "Wallet balance and paginated ledger history."},
-        {"name": "ledger", "description": "Deposit, withdraw, and transfer (idempotent)."},
+        {"name": "auth", "description": "Register, login, refresh, profile."},
+        {"name": "categories", "description": "One-click report categories."},
+        {"name": "reports", "description": "Submit and track infrastructure reports."},
+        {"name": "admin", "description": "Authority dashboard endpoints."},
     ],
 }
+
+# DEBUG Swagger auto-login (see apps.accounts.views.SwaggerDevTokenView)
+SWAGGER_SUPERUSER_USERNAME = os.environ.get("SWAGGER_SUPERUSER_USERNAME", "swagger")
+SWAGGER_SUPERUSER_PASSWORD = os.environ.get("SWAGGER_SUPERUSER_PASSWORD", "")

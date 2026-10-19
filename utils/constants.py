@@ -1,25 +1,44 @@
 """
-Ledger entry types and money-related constants.
+Report status, priority, and media constants shared across apps.
 """
 
-ENTRY_DEPOSIT = "DEPOSIT"
-ENTRY_WITHDRAWAL = "WITHDRAWAL"
-ENTRY_TRANSFER_OUT = "TRANSFER_OUT"
-ENTRY_TRANSFER_IN = "TRANSFER_IN"
+STATUS_PENDING = "pending"
+STATUS_IN_PROGRESS = "in_progress"
+STATUS_RESOLVED = "resolved"
+STATUS_REJECTED = "rejected"
 
-LEDGER_ENTRY_TYPE_CHOICES = [
-    (ENTRY_DEPOSIT, "Deposit"),
-    (ENTRY_WITHDRAWAL, "Withdrawal"),
-    (ENTRY_TRANSFER_OUT, "Transfer out"),
-    (ENTRY_TRANSFER_IN, "Transfer in"),
+REPORT_STATUS_CHOICES = [
+    (STATUS_PENDING, "Pending"),
+    (STATUS_IN_PROGRESS, "In Progress"),
+    (STATUS_RESOLVED, "Resolved"),
+    (STATUS_REJECTED, "Rejected"),
 ]
 
-OPERATION_DEPOSIT = "deposit"
-OPERATION_WITHDRAW = "withdraw"
-OPERATION_TRANSFER = "transfer"
+PRIORITY_HIGH = "high"
+PRIORITY_MEDIUM = "medium"
+PRIORITY_LOW = "low"
 
-LEDGER_OPERATION_CHOICES = [
-    (OPERATION_DEPOSIT, "Deposit"),
-    (OPERATION_WITHDRAW, "Withdraw"),
-    (OPERATION_TRANSFER, "Transfer"),
+PRIORITY_CHOICES = [
+    (PRIORITY_HIGH, "High"),
+    (PRIORITY_MEDIUM, "Medium"),
+    (PRIORITY_LOW, "Low"),
+]
+
+MEDIA_IMAGE = "image"
+MEDIA_VIDEO = "video"
+
+MEDIA_TYPE_CHOICES = [
+    (MEDIA_IMAGE, "Image"),
+    (MEDIA_VIDEO, "Video"),
+]
+
+# Default seed categories for one-click reporting.
+DEFAULT_CATEGORIES = [
+    {"name": "Road", "slug": "road", "sort_order": 1},
+    {"name": "Drainage", "slug": "drainage", "sort_order": 2},
+    {"name": "Electricity", "slug": "electricity", "sort_order": 3},
+    {"name": "Bridge", "slug": "bridge", "sort_order": 4},
+    {"name": "Street Light", "slug": "street-light", "sort_order": 5},
+    {"name": "Water Supply", "slug": "water-supply", "sort_order": 6},
+    {"name": "Other", "slug": "other", "sort_order": 99},
 ]
