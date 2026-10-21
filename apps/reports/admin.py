@@ -21,13 +21,16 @@ class ReportAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "category",
+        "district",
+        "union",
+        "ward",
         "status",
         "priority",
-        "is_anonymous",
         "assigned_to",
         "created_at",
     )
-    list_filter = ("status", "priority", "category", "is_anonymous")
-    search_fields = ("title", "description", "address_text")
-    raw_id_fields = ("reporter", "assigned_to")
+    list_filter = ("status", "priority", "category", "district")
+    search_fields = ("union", "ward", "description")
+    raw_id_fields = ("reporter", "assigned_to", "assigned_by")
+    autocomplete_fields = ("district",)
     inlines = [ReportMediaInline]

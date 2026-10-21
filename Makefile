@@ -6,8 +6,8 @@ help:
 	@echo "Available commands:"
 	@echo "  make install          - Install dependencies"
 	@echo "  make migrate          - Run database migrations"
-	@echo "  make seed             - Seed default report categories"
-	@echo "  make createsuperuser  - Create Django superuser"
+	@echo "  make seed             - Seed districts + report categories"
+	@echo "  make createsuperuser  - Create Django superuser (phone login)"
 	@echo "  make runserver        - Run development server"
 	@echo "  make celery           - Run Celery worker"
 	@echo "  make celery-beat      - Run Celery beat scheduler"
@@ -22,6 +22,7 @@ migrate:
 	python manage.py migrate
 
 seed:
+	python manage.py seed_districts
 	python manage.py seed_categories
 
 createsuperuser:

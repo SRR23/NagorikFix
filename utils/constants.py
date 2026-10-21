@@ -3,12 +3,14 @@ Report status, priority, and media constants shared across apps.
 """
 
 STATUS_PENDING = "pending"
+STATUS_ASSIGNED = "assigned"
 STATUS_IN_PROGRESS = "in_progress"
 STATUS_RESOLVED = "resolved"
 STATUS_REJECTED = "rejected"
 
 REPORT_STATUS_CHOICES = [
     (STATUS_PENDING, "Pending"),
+    (STATUS_ASSIGNED, "Assigned"),
     (STATUS_IN_PROGRESS, "In Progress"),
     (STATUS_RESOLVED, "Resolved"),
     (STATUS_REJECTED, "Rejected"),
@@ -32,7 +34,10 @@ MEDIA_TYPE_CHOICES = [
     (MEDIA_VIDEO, "Video"),
 ]
 
-# Default seed categories for one-click reporting.
+# Nagorik may attach at most this many photos when submitting a report.
+MAX_REPORT_PHOTOS = 3
+
+# Default seed categories.
 DEFAULT_CATEGORIES = [
     {"name": "Road", "slug": "road", "sort_order": 1},
     {"name": "Drainage", "slug": "drainage", "sort_order": 2},

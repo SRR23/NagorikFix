@@ -223,18 +223,13 @@ SPECTACULAR_SETTINGS = {
         "(roads, drainage, street lights, …) and for authorities / field "
         "officers to track and resolve them.\n\n"
         "### Actors\n"
-        "- **Citizen** — register/login, submit reports with GPS + media\n"
-        "- **Admin** — dashboard, assign tickets, set priority\n"
-        "- **Field officer** — task list, before/after proof, resolve\n\n"
-        "### Typical flow\n"
-        "1. `GET /api/categories/` → pick a category\n"
-        "2. `POST /api/reports/` with lat/lng (+ optional anonymous flag)\n"
-        "3. `POST /api/reports/{id}/media/` to attach photo/video\n"
-        "4. Admin assigns officer via `PATCH /api/reports/{id}/update/`\n"
-        "5. Officer uploads before/after media and marks resolved\n\n"
+        "- **Nagorik** — phone signup (approved immediately), submit reports\n"
+        "- **Staff** — signup then wait for approval; field tasks\n"
+        "- **Administration** — signup then wait for approval; dashboard / assign\n\n"
         "### Auth\n"
-        "`Authorization: Bearer <access_token>` from `/api/auth/login/` "
-        "or `/api/auth/register/`.\n"
+        "Login identity is **phone** (BD mobile). "
+        "No OTP in MVP — phone + password.\n"
+        "Staff/Administration cannot login until `is_approved=true`.\n"
     ),
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
@@ -260,10 +255,12 @@ SPECTACULAR_SETTINGS = {
         "operationsSorter": "alpha",
     },
     "TAGS": [
-        {"name": "auth", "description": "Register, login, refresh, profile."},
-        {"name": "categories", "description": "One-click report categories."},
-        {"name": "reports", "description": "Submit and track infrastructure reports."},
-        {"name": "admin", "description": "Authority dashboard endpoints."},
+        {"name": "auth", "description": "Register, login, refresh, approve, profile."},
+        {"name": "districts", "description": "Bangladesh districts for signup."},
+        {"name": "categories", "description": "Report categories for Nagorik form."},
+        {"name": "reports", "description": "Nagorik submit and track own reports."},
+        {"name": "admin", "description": "District administration inbox and assign."},
+        {"name": "staff", "description": "Staff assigned tasks."},
     ],
 }
 

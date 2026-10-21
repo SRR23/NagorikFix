@@ -1,8 +1,10 @@
-"""Report serializers — keep create payload short for one-click reporting."""
+"""Report serializers for Nagorik / Administration / Staff flows."""
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from apps.accounts.serializers import DistrictSerializer
 from apps.reports.models import Category, Report, ReportMedia
+from utils.constants import MAX_REPORT_PHOTOS, PRIORITY_CHOICES
 
 User = get_user_model()
 
@@ -17,39 +19,31 @@ class ReportMediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReportMedia
         fields = ("id", "file", "media_type", "kind", "created_at")
-        read_only_fields = ("id", "created_at")
+        read_only_fields = fields
+
+
+class StaffBriefSerializer(serializers.ModelSerializer):
+    """Compact staff row for Administration assign dropdown."""
+
+    class Meta:
+        model = User
+        fields = ("id", "phone", "full_name")
+        read_only_fields = fields
+
+
+class ReporterBriefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "phone", "full_name")
+        read_only_fields = fields
 
 
 class ReportListSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
-    category_id = serializers.UUIDField(write_only=True)
-
-    class Meta:
-        model = Report
-        fields = (
-            "id",
-            "category",
-            "category_id",
-            "title",
-            "status",
-            "priority",
-            "latitude",
-            "longitude",
-            "address_text",
-            "is_anonymous",
-            "created_at",
-            "updated_at",
-        )
-        read_only_fields = ("id", "status", "created_at", "updated_at")
-
-
-class ReportDetailSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
-    media = ReportMediaSerializer(many=True, read_only=True)
-    assigned_to_email = serializers.EmailField(
-        source="assigned_to.email",
-        read_only=True,
-        allow_null=True,
+    district = DistrictSerializer(read_only=True)
+    photo_count = serializers.IntegerField(read_only=True)
+    assigned_to_name = serializers.CharField(
+        source="assigned_to.full_name", read_only=True, allow_null=True
     )
 
     class Meta:
@@ -57,16 +51,45 @@ class ReportDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "category",
-            "title",
+            "district",
+            "union",
+            "ward",
             "description",
             "status",
             "priority",
+            "photo_count",
+            "assigned_to",
+            "assigned_to_name",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = fields
+
+
+class ReportDetailSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(read_only=True)
+    district = DistrictSerializer(read_only=True)
+    media = ReportMediaSerializer(many=True, read_only=True)
+    reporter = ReporterBriefSerializer(read_only=True)
+    assigned_to_detail = StaffBriefSerializer(source="assigned_to", read_only=True)
+
+    class Meta:
+        model = Report
+        fields = (
+            "id",
+            "category",
+            "district",
+            "reporter",
+            "union",
+            "ward",
+            "description",
             "latitude",
             "longitude",
-            "address_text",
-            "is_anonymous",
+            "status",
+            "priority",
             "assigned_to",
-            "assigned_to_email",
+            "assigned_to_detail",
+            "assigned_at",
             "media",
             "created_at",
             "updated_at",
@@ -75,66 +98,72 @@ class ReportDetailSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class ReportCreateSerializer(serializers.ModelSerializer):
+class ReportCreateSerializer(serializers.Serializer):
     """
-    Minimal create body for one-click reporting:
-    category_id + GPS (+ optional description / anonymous flag).
-    Media is uploaded in a follow-up call.
+    Nagorik submit form.
+
+    Multipart fields:
+    - category_id, union, ward, description (required)
+    - photos: up to 3 image files (optional but recommended)
+    - latitude, longitude (optional)
     """
 
     category_id = serializers.UUIDField()
-
-    class Meta:
-        model = Report
-        fields = (
-            "category_id",
-            "title",
-            "description",
-            "latitude",
-            "longitude",
-            "address_text",
-            "is_anonymous",
-        )
-
-    def validate_category_id(self, value):
-        if not Category.objects.filter(pk=value, is_active=True).exists():
-            raise serializers.ValidationError("Unknown or inactive category.")
-        return value
-
-    def create(self, validated_data):
-        category_id = validated_data.pop("category_id")
-        request = self.context["request"]
-        is_anonymous = validated_data.get("is_anonymous", False)
-
-        reporter = None
-        if request.user.is_authenticated and not is_anonymous:
-            reporter = request.user
-
-        return Report.objects.create(
-            category_id=category_id,
-            reporter=reporter,
-            **validated_data,
-        )
-
-
-class ReportStatusUpdateSerializer(serializers.Serializer):
-    """Admin / officer status or priority change."""
-
-    status = serializers.ChoiceField(
-        choices=Report._meta.get_field("status").choices,
-        required=False,
+    union = serializers.CharField(max_length=120)
+    ward = serializers.CharField(max_length=120)
+    description = serializers.CharField()
+    latitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, required=False, allow_null=True
     )
-    priority = serializers.ChoiceField(
-        choices=Report._meta.get_field("priority").choices,
-        required=False,
+    longitude = serializers.DecimalField(
+        max_digits=9, decimal_places=6, required=False, allow_null=True
     )
-    assigned_to = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(role=User.Role.FIELD_OFFICER),
-        required=False,
-        allow_null=True,
-    )
+
+    def validate_description(self, value):
+        text = (value or "").strip()
+        if len(text) < 10:
+            raise serializers.ValidationError(
+                "Please describe the problem (at least 10 characters)."
+            )
+        return text
+
+    def validate_union(self, value):
+        return value.strip()
+
+    def validate_ward(self, value):
+        return value.strip()
 
     def validate(self, attrs):
-        if not attrs:
-            raise serializers.ValidationError("Provide at least one field to update.")
+        category_id = attrs.pop("category_id")
+        try:
+            attrs["category"] = Category.objects.get(pk=category_id, is_active=True)
+        except Category.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"category_id": "Unknown or inactive category."}
+            ) from exc
         return attrs
+
+
+class AssignReportSerializer(serializers.Serializer):
+    staff_id = serializers.IntegerField()
+
+    def validate(self, attrs):
+        try:
+            attrs["staff"] = User.objects.get(
+                pk=attrs["staff_id"],
+                role=User.Role.STAFF,
+                is_approved=True,
+            )
+        except User.DoesNotExist as exc:
+            raise serializers.ValidationError(
+                {"staff_id": "Approved staff member not found."}
+            ) from exc
+        return attrs
+
+
+class StaffStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["in_progress", "resolved"])
+
+
+class AdminPrioritySerializer(serializers.Serializer):
+    priority = serializers.ChoiceField(choices=PRIORITY_CHOICES)

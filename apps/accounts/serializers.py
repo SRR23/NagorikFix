@@ -1,71 +1,104 @@
-"""Serializers for registration, login, and profile."""
-from django.contrib.auth import get_user_model
+"""Serializers for registration, login, profile, and districts."""
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-User = get_user_model()
+from apps.accounts.models import District, User
+from apps.accounts.phone import normalize_bd_phone
+
+
+class DistrictSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = District
+        fields = ("id", "name", "name_bn", "code")
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Public profile shape returned by /auth/me/ and register."""
+    """Public profile returned by /auth/me/ and register."""
+
+    district = DistrictSerializer(read_only=True)
 
     class Meta:
         model = User
         fields = (
             "id",
-            "email",
-            "username",
-            "first_name",
-            "last_name",
             "phone",
+            "full_name",
+            "email",
             "role",
+            "district",
+            "is_approved",
             "date_joined",
         )
         read_only_fields = fields
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+class RegisterSerializer(serializers.Serializer):
     """
-    Citizen self-registration.
+    Public signup for all three roles.
 
-    Admin / field_officer accounts should be created by staff later
-    (or seeded) — not via public register.
+    - nagorik → is_approved=True, tokens returned
+    - staff / administration → is_approved=False, no tokens until approved
     """
 
-    password = serializers.CharField(write_only=True, min_length=8)
-    password_confirm = serializers.CharField(write_only=True, min_length=8)
+    phone = serializers.CharField(max_length=20)
+    password = serializers.CharField(write_only=True, min_length=6)
+    password_confirm = serializers.CharField(write_only=True, min_length=6)
+    full_name = serializers.CharField(max_length=150)
+    role = serializers.ChoiceField(choices=User.Role.choices)
+    district_id = serializers.IntegerField()
+    email = serializers.EmailField(required=False, allow_blank=True)
 
-    class Meta:
-        model = User
-        fields = (
-            "email",
-            "username",
-            "first_name",
-            "last_name",
-            "phone",
-            "password",
-            "password_confirm",
-        )
+    def validate_phone(self, value):
+        try:
+            phone = normalize_bd_phone(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+        if User.objects.filter(phone=phone).exists():
+            raise serializers.ValidationError("This phone number is already registered.")
+        return phone
+
+    def validate_district_id(self, value):
+        if not District.objects.filter(pk=value, is_active=True).exists():
+            raise serializers.ValidationError("Unknown or inactive district.")
+        return value
 
     def validate(self, attrs):
         if attrs["password"] != attrs["password_confirm"]:
             raise serializers.ValidationError(
                 {"password_confirm": "Passwords do not match."}
             )
-        validate_password(attrs["password"])
+        try:
+            validate_password(attrs["password"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)})
         return attrs
 
     def create(self, validated_data):
         validated_data.pop("password_confirm")
         password = validated_data.pop("password")
-        user = User(**validated_data, role=User.Role.CITIZEN)
-        user.set_password(password)
-        user.save()
-        return user
+        district_id = validated_data.pop("district_id")
+        role = validated_data["role"]
+
+        # Nagorik can use the app immediately; others wait for approval.
+        is_approved = role == User.Role.NAGORIK
+
+        return User.objects.create_user(
+            password=password,
+            district_id=district_id,
+            is_approved=is_approved,
+            **validated_data,
+        )
 
 
 class LoginSerializer(serializers.Serializer):
-    """Email + password login payload."""
+    """Phone + password login."""
 
-    email = serializers.EmailField()
+    phone = serializers.CharField(max_length=20)
     password = serializers.CharField(write_only=True)
+
+    def validate_phone(self, value):
+        try:
+            return normalize_bd_phone(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)

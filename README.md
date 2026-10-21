@@ -1,130 +1,103 @@
 # NagorikFix API
 
-**NagorikFix** — Public Infrastructure Reporting System backend (Django + DRF).
+Public infrastructure reporting backend (Django + DRF).
 
-Citizens report issues (roads, drainage, street lights, …). Authority admins triage and assign. Field officers resolve with before/after proof.
+## Core flow
+
+```
+Nagorik login
+  → fill form (category, union, ward, description, max 3 photos)
+  → submit report (status: pending)
+
+Administration (same district)
+  → see inbox
+  → assign a Staff member (status: assigned)
+
+Staff
+  → see assigned tasks
+  → mark in_progress / resolved
+```
 
 ---
 
-## Actors
+## Actors & auth
 
-| Role | How they auth | What they do (MVP) |
+| Role | Signup | Login |
 | --- | --- | --- |
-| Citizen | Register / login JWT | Submit report + media, track status |
-| Admin (`role=admin`) | Login JWT | Dashboard stats, assign, set priority |
-| Field officer | Login JWT | See assigned tasks, upload proof, resolve |
-| Django superuser | `/admin/` or JWT | Full Django admin |
+| **nagorik** | approved immediately | phone + password |
+| **staff** | pending until approved | phone + password |
+| **administration** | pending until approved | phone + password |
 
-Public self-registration always creates `role=citizen`. Create admin/officer accounts via Django admin or `createsuperuser` + role edit.
-
----
-
-## What is included in this template (MVP)
-
-- Auth: register, login, refresh, logout, me
-- Categories (one-click reporting list)
-- Reports: create (GPS + optional anonymous), list, detail
-- Media upload endpoint
-- Admin/officer status / priority / assign update
-- Simple dashboard stats
-- Docker Compose (web + Postgres + Redis + Celery)
-- Swagger at `/api/docs/`
-
-**Not yet:** push notifications, heatmap, SLA escalation, AI duplicate detection, gamification, offline sync. Those come in later phases.
+- Unique id: **phone**
+- Each user → **one district**
+- `POST /api/auth/approve/{user_id}/` for staff/admin approval
 
 ---
 
-## Environment files
+## Report APIs
 
-| File | When to use |
+### Nagorik
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/api/categories/` | Form dropdown |
+| POST | `/api/reports/` | multipart submit |
+| GET | `/api/reports/` | Own reports |
+| GET | `/api/reports/{id}/` | Own report detail |
+
+**Submit body** (`multipart/form-data`):
+
+| Field | Required |
 | --- | --- |
-| `.env.example` | Template for local (non-Docker) runs |
-| `.env` | Your local secrets — copy from `.env.example` |
-| `.env.docker.example` | Template for Docker Compose |
-| `.env.docker` | Compose env — copy from `.env.docker.example` |
+| `category_id` | yes |
+| `union` | yes |
+| `ward` | yes |
+| `description` | yes (≥ 10 chars) |
+| `photos` | optional, max **3** images (repeat field) |
+| `latitude` / `longitude` | optional |
+
+District is taken from the Nagorik profile automatically.
+
+### Administration
+
+| Method | Path |
+| --- | --- |
+| GET | `/api/admin/reports/` (`?status=pending`) |
+| GET | `/api/admin/reports/{id}/` |
+| GET | `/api/admin/staff/` |
+| POST | `/api/admin/reports/{id}/assign/` `{ "staff_id": 5 }` |
+| PATCH | `/api/admin/reports/{id}/priority/` `{ "priority": "high" }` |
+| POST | `/api/admin/reports/{id}/reject/` |
+| GET | `/api/admin/dashboard/stats/` |
+
+### Staff
+
+| Method | Path |
+| --- | --- |
+| GET | `/api/staff/tasks/` |
+| GET | `/api/staff/tasks/{id}/` |
+| PATCH | `/api/staff/tasks/{id}/status/` `{ "status": "in_progress" \| "resolved" }` |
+
+### Status values
+
+`pending` → `assigned` → `in_progress` → `resolved`  
+(also `rejected` by administration)
 
 ---
 
-## Setup without Docker
-
-**Requirements:** Python 3.10+, local Postgres.
+## Setup
 
 ```bash
 cd NagorikFixAPI
-
-# From parent folder you can also use the shared venv:
-# source ../venv/bin/activate
-
-python3 -m venv venv
-source venv/bin/activate
-
+source ../venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env
-# Create DB: createdb nagorikfix
-
 python manage.py migrate
+python manage.py seed_districts
 python manage.py seed_categories
-python manage.py createsuperuser
+python manage.py createsuperuser   # phone-based
 
 python manage.py runserver
 ```
 
-- API: http://localhost:8000  
-- Health: http://localhost:8000/api/health/  
-- Swagger: http://localhost:8000/api/docs/  
-
-```bash
-pytest
-```
-
----
-
-## Setup with Docker
-
-```bash
-cd NagorikFixAPI
-cp .env.docker.example .env.docker
-docker compose --env-file .env.docker up --build
-```
-
-Then:
-
-```bash
-docker compose --env-file .env.docker exec web python manage.py seed_categories
-docker compose --env-file .env.docker exec web python manage.py createsuperuser
-```
-
-- API: http://localhost:8001  
-- Swagger: http://localhost:8001/api/docs/  
-
----
-
-## Main API routes
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| POST | `/api/auth/register/` | Citizen signup |
-| POST | `/api/auth/login/` | Email + password → JWT |
-| GET | `/api/auth/me/` | Current user |
-| GET | `/api/categories/` | One-click categories |
-| POST | `/api/reports/` | Create report (GPS required) |
-| GET | `/api/reports/` | List (scoped by role) |
-| GET | `/api/reports/{id}/` | Detail + media |
-| PATCH | `/api/reports/{id}/update/` | Status / priority / assign |
-| POST | `/api/reports/{id}/media/` | Multipart file upload |
-| GET | `/api/admin/dashboard/stats/` | Admin aggregates |
-
----
-
-## Project layout
-
-```
-NagorikFixAPI/
-  apps/
-    accounts/     # User model + JWT auth
-    reports/      # Category, Report, ReportMedia
-  config/         # Django settings, urls, celery
-  utils/          # permissions, constants, exceptions
-  docker/         # entrypoint
-```
+Swagger: http://localhost:8000/api/docs/

@@ -2,8 +2,7 @@
 Project-wide pytest setup.
 
 Uses config.settings.development and local Postgres via DB_* variables.
-DATABASE_URL is removed so pytest does not create a test database on a
-remote host that may be present in .env.
+DATABASE_URL is removed so pytest does not hit a remote host from .env.
 """
 from __future__ import annotations
 
@@ -27,7 +26,6 @@ if _db_host not in {"localhost", "127.0.0.1"}:
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
-    """Runs before Django setup. Keep DATABASE_URL cleared."""
     os.environ.pop("DATABASE_URL", None)
 
 
@@ -37,7 +35,6 @@ from rest_framework.test import APIClient
 
 @pytest.fixture(autouse=True)
 def _test_runtime_settings(settings):
-    """Keep tests off Redis and off the network."""
     settings.CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
@@ -55,15 +52,27 @@ def api_client():
 
 
 @pytest.fixture
-def citizen_user(db):
+def dhaka_district(db):
+    from apps.accounts.models import District
+
+    return District.objects.create(
+        name="Dhaka",
+        name_bn="ঢাকা",
+        code="dhaka",
+    )
+
+
+@pytest.fixture
+def nagorik_user(db, dhaka_district):
     from apps.accounts.models import User
 
-    # USERNAME_FIELD is email — pass it as the first create_user argument.
     return User.objects.create_user(
-        "citizen@example.com",
+        phone="01711111111",
         password="testpass123",
-        username="citizen1",
-        role=User.Role.CITIZEN,
+        full_name="Test Nagorik",
+        role=User.Role.NAGORIK,
+        district=dhaka_district,
+        is_approved=True,
     )
 
 
